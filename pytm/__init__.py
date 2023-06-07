@@ -48,6 +48,7 @@ from .pytm import (
     Threat,
     TLSVersion,
     var,
+    override_eval
 )
 
 

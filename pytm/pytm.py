@@ -23,6 +23,22 @@ from datetime import datetime
 
 from .template_engine import SuperFormatter
 
+""" Custom eval() function """
+
+""" 
+Allows to define a custom eval() function that may perform additional checks on
+the target and/or condition.
+
+This also allows to change the scope of the `eval` function, which may be useful
+when the condition calls custom functions or checks custom types.
+"""
+
+custom_eval = lambda target, condition : eval(condition)
+
+def override_eval(f):
+    global custom_eval
+    custom_eval = f
+
 """ Helper functions """
 
 """ The base for this (descriptors instead of properties) has been
@@ -669,7 +685,7 @@ to a boolean True or False""",
     def apply(self, target):
         if not isinstance(target, self.target):
             return None
-        return eval(self.condition)
+        return custom_eval(target, self.condition)
 
 
 class Finding:
