@@ -648,6 +648,7 @@ to a boolean True or False""",
     prerequisites = varString("")
     example = varString("")
     references = varString("")
+    category = varStrings("")
     target = ()
 
     def __init__(self, **kwargs):
@@ -667,6 +668,19 @@ to a boolean True or False""",
         self.prerequisites = kwargs.get("prerequisites", "")
         self.example = kwargs.get("example", "")
         self.references = kwargs.get("references", "")
+        self.category = kwargs.get("category", "None")
+
+        # add threat to category list
+        categories = []
+        if isinstance(self.category, str):
+            categories.append(self.category)
+        else:
+            categories = self.category
+
+        for category in categories:
+            if category not in TM._threatCategories:
+                TM._threatCategories.append(category)        
+
 
     def _safeset(self, attr, value):
         try:
@@ -686,7 +700,6 @@ to a boolean True or False""",
         if not isinstance(target, self.target):
             return None
         return custom_eval(target, self.condition)
-
 
 class Finding:
     """Represents a Finding - the element in question
@@ -737,6 +750,7 @@ Can be one of:
             "example",
             "references",
             "condition",
+            "category"
         ]
         threat = kwargs.pop("threat", None)
         if threat:
@@ -828,6 +842,7 @@ with same properties, except name and notes""",
         doc="A list of assumptions about the design/model.",
     )
     _colormap = False
+    _threatCategories = []
 
     def __init__(self, name, **kwargs):
         for key, value in kwargs.items():
@@ -2108,6 +2123,7 @@ def encode_threat_data(obj):
         "condition",
         "cvss",
         "response",
+        "category"
     ]
 
     if type(obj) is Finding or (len(obj) != 0 and type(obj[0]) is Finding):
