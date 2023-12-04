@@ -644,10 +644,10 @@ to a boolean True or False""",
     details = varString("")
     likelihood = varString("")
     severity = varString("")
-    mitigations = varString("")
+    mitigations = varStrings("")
     prerequisites = varString("")
-    example = varString("")
-    references = varString("")
+    example = varStrings("")
+    references = varStrings("")
     category = varStrings("")
     target = ()
 
@@ -710,11 +710,11 @@ class Finding:
     description = varString("", required=True, doc="Threat description")
     details = varString("", required=True, doc="Threat details")
     severity = varString("", required=True, doc="Threat severity")
-    mitigations = varString("", required=True, doc="Threat mitigations")
-    example = varString("", required=True, doc="Threat example")
+    mitigations = varStrings("", required=True, doc="Threat mitigations")
+    example = varStrings("", required=True, doc="Threat example")
     id = varString("", required=True, doc="Finding ID")
     threat_id = varString("", required=True, doc="Threat ID")
-    references = varString("", required=True, doc="Threat references")
+    references = varStrings("", required=True, doc="Threat references")
     condition = varString("", required=True, doc="Threat condition")
     assumption = varAssumption(None, required=False, doc="The assumption, that caused this finding to be excluded")
     response = varString(
@@ -2139,7 +2139,10 @@ def encode_threat_data(obj):
                 # ignore missing attributes, since this can be called
                 # on both a Finding and a Threat
                 continue
-            if v is not None:
+
+            if isinstance(v, set):
+                setattr(t, a, [html.escape(i) for i in v])
+            elif isinstance(v, str):
                 setattr(t, a, html.escape(v))
 
         encoded_threat_data.append(t)
