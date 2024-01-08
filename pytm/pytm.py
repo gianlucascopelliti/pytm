@@ -645,7 +645,7 @@ to a boolean True or False""",
     likelihood = varString("")
     severity = varString("")
     mitigations = varStrings("")
-    prerequisites = varString("")
+    prerequisites = varStrings("")
     example = varStrings("")
     references = varStrings("")
     category = varStrings("")
@@ -712,6 +712,8 @@ class Finding:
     severity = varString("", required=True, doc="Threat severity")
     mitigations = varStrings("", required=True, doc="Threat mitigations")
     example = varStrings("", required=True, doc="Threat example")
+    prerequisites = varStrings("", required=True, doc="Threat prerequisites")
+    likelihood = varString("", required=True, doc="Threat likelihood")
     id = varString("", required=True, doc="Finding ID")
     threat_id = varString("", required=True, doc="Threat ID")
     references = varStrings("", required=True, doc="Threat references")
@@ -747,6 +749,8 @@ Can be one of:
             "details",
             "severity",
             "mitigations",
+            "prerequisites",
+            "likelihood",
             "example",
             "references",
             "condition",
@@ -2116,6 +2120,8 @@ def encode_threat_data(obj):
         "details",
         "severity",
         "mitigations",
+        "prerequisites",
+        "likelihood",
         "example",
         "id",
         "threat_id",
