@@ -39,6 +39,19 @@ def override_eval(f):
     global custom_eval
     custom_eval = f
 
+""" Custom attributes """
+
+"""
+Allows defining a custom attribute for each component in the threat modeling.
+This is useful for defining ad-hoc conditions to match threats to components
+"""
+
+class CustomAttribute():
+    def __init__(self, attribute, description, default):
+        self.name = attribute
+        self.description = description
+        self.default = default
+
 """ Helper functions """
 
 """ The base for this (descriptors instead of properties) has been
@@ -847,6 +860,12 @@ with same properties, except name and notes""",
     )
     _colormap = False
     _threatCategories = []
+    attributesFile = varString(
+        os.path.dirname(__file__) + "/threatlib/attributes.json",
+        onSet=lambda i, v: i._init_attributes(),
+        doc="JSON file with custom attributes",
+    )
+    _attributes = []
 
     def __init__(self, name, **kwargs):
         for key, value in kwargs.items():
@@ -883,6 +902,26 @@ with same properties, except name and notes""",
         active_threats = (threat for threat in threats_json if "DEPRECATED" not in threat)
         for threat in active_threats:
             TM._threats.append(Threat(**threat))
+
+    def _init_attributes(self):
+        TM._attributes = []
+        self._add_attributes()
+
+    def _add_attributes(self):
+        try:
+            with open(self.attributesFile, "r", encoding="utf8") as attributes_file:
+                attributes_json = json.load(attributes_file)
+        except (FileNotFoundError, PermissionError, IsADirectoryError) as e:
+            raise UIError(e, f"while trying to open the the attribute file ({self.attributesFile}).")
+
+        for i in attributes_json:
+            TM._attributes.append(CustomAttribute(**i))
+
+    def _add_attributes_to_element(element):
+        for attr in TM._attributes:
+            if hasattr(element, attr.name):
+                raise ValueError(f"Element {element.name} has already attribute {attr.name}")
+            element.__setattr__(attr.name, attr.default)
 
     def resolve(self):
         finding_count = 0
@@ -1475,7 +1514,8 @@ a custom response, CVSS score or override other attributes.""",
         self.uuid = uuid.UUID(int=random.getrandbits(128))
         self._is_drawn = False
         TM._elements.append(self)
-
+        TM._add_attributes_to_element(self)
+    
     def __repr__(self):
         return "<{0}.{1}({2}) at {3}>".format(
             self.__module__, type(self).__name__, self.name, hex(id(self))

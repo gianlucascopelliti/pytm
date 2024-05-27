@@ -1,0 +1,3 @@
+[
+    {"attribute": "Encrypted", "description": "Data on flow or in DB is encrypted", "default": false}
+]

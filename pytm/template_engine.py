@@ -73,7 +73,7 @@ class SuperFormatter(string.Formatter):
 
         elif spec.startswith("vars"):
             template = spec.partition(":")[-1]
-            value = [f"{k}={v}" for k, v in vars(value).items() if k not in ["uuid", "_is_drawn"]]
+            value = [f"{k}={v}" for k, v in vars(value).items() if k not in ["uuid", "_is_drawn"] and v]
             return "".join([self.format(template, item=item) for item in value])
         else:
             return super(SuperFormatter, self).format_field(value, spec)
