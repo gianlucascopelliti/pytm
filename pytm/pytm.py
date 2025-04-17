@@ -261,7 +261,6 @@ class varData(var):
                 )
         super().__set__(instance, DataSet(value))
 
-
 class DataSet(set):
     def __contains__(self, item):
         if isinstance(item, str):
@@ -317,7 +316,71 @@ class varAssumption(var):
             )
         super().__set__(instance, value)
 
+class Rankdir(Enum):
+    TB = "TB"
+    BT = "BT"
+    LR = "LR"
+    RL = "RL"
 
+class Rank(Enum):
+    same = "same"
+    min = "min"
+    max = "max"
+    source = "source"
+    sink = "sink"
+
+class varRankdir(var):
+    def __set__(self, instance, value):
+        if not isinstance(value, Rankdir):
+            raise ValueError("expecting a graphviz rankdir value TB, BT, LR, or RL, got a {}".format(type(value)))
+        super().__set__(instance, value)
+
+class varRank(var):
+    def __set__(self, instance, value):
+        if not isinstance(value, Rank):
+            raise ValueError("expecting a graphviz rank value same, min, max, source, or sink, got a {}".format(type(value)))
+        super().__set__(instance, value)
+
+class varLayoutGroup(var):
+    def __set__(self, instance, value):
+        if not isinstance(value, LayoutGroup):
+            raise ValueError("expecting a LayoutGroup value, got a {}".format(type(value)))
+        super().__set__(instance, value)
+
+class LayoutGroup:
+    """Grouping Assets in subgraph for layout optimization"""
+
+    name = varString("", required=True, doc="name of layout group")
+    rank = varRank(Rank.same, required=True, doc="graphviz rank of layout group")
+
+    def __init__(self, name, rank):
+        self.name = name
+        self.rank = rank
+        self.nodes = []
+        if any(lg.name == name for lg in TM._layoutGroups):
+            raise ValueError("LayoutGroup {} already defined".format(name))
+        TM._layoutGroups.append(self)
+
+    def __str__(self):
+        return f"LayoutGroup: {self.name}, Rank: {self.rank}, Nodes: {len(self.nodes)}"
+
+    def _dfd_template(self):
+        return """subgraph layoutgroup_{uniq_name} {{
+    rank={rank};
+    style=invis;
+{nodes}
+}}"""
+
+    def dfd(self):
+        if self.nodes == []:
+            return ""
+
+        return self._dfd_template().format(
+            uniq_name=self.name,
+            rank=self.rank.value,
+            nodes=indent("\n".join(self.nodes), "    ")
+        )
+    
 class Action(Enum):
     """Action taken when validating a threat model."""
 
@@ -397,7 +460,6 @@ class TLSVersion(OrderedEnum):
     TLSv11 = 5
     TLSv12 = 6
     TLSv13 = 7
-
 
 def _sort(flows, addOrder=False):
     ordered = sorted(flows, key=lambda flow: flow.order)
@@ -822,6 +884,7 @@ class TM:
     _threats = []
     _boundaries = []
     _data = []
+    _layoutGroups = []
     _threatsExcluded = []
     _sf = None
     _duplicate_ignored_attrs = (
@@ -866,6 +929,7 @@ with same properties, except name and notes""",
         doc="JSON file with custom attributes",
     )
     _attributes = []
+    rankdir = varRankdir(Rankdir.TB, doc="graphviz ranking direction")
 
     def __init__(self, name, **kwargs):
         for key, value in kwargs.items():
@@ -1054,6 +1118,8 @@ a brief description of the system being modeled."""
 
     def _dfd_template(self):
         return """digraph tm {{
+    newrank=true;
+    rankdir={rankdir};
     graph [
         fontname = Arial;
         fontsize = 14;
@@ -1074,7 +1140,7 @@ a brief description of the system being modeled."""
     nodesep = 1;
 
 {edges}
-}}"""
+{layoutgroups}}}"""
 
     def dfd(self, **kwargs):
         if "levels" in kwargs:
@@ -1091,6 +1157,7 @@ a brief description of the system being modeled."""
         # or contain only empty boundaries
         boundary_levels = defaultdict(set)
         max_level = 0
+        lgs = ""
         for b in TM._boundaries:
             if b in parents:
                 continue
@@ -1114,8 +1181,15 @@ a brief description of the system being modeled."""
             if not e._is_drawn and not isinstance(e, Boundary) and e.inBoundary is None:
                 edges.append(e.dfd(**kwargs))
 
+        for lg in TM._layoutGroups:
+            d = lg.dfd()
+            if d != "":
+                lgs = lgs + d + "\n\n"
+
         return self._dfd_template().format(
-            edges=indent("\n".join(filter(len, edges)), "    ")
+            rankdir=self.rankdir.value,
+            edges=indent("\n".join(filter(len, edges)), "    "),
+            layoutgroups=indent(lgs, "    ")
         )
 
     def _seq_template(self):
@@ -1351,8 +1425,6 @@ a brief description of the system being modeled."""
 
         db.close()
 
-
-
 class Controls:
     """Controls implemented by/on and Element"""
 
@@ -1505,6 +1577,7 @@ a custom response, CVSS score or override other attributes.""",
     )
     controls = varControls(None)
     severity = 0
+    _inLayoutGroup = varLayoutGroup(None, doc="LayoutGroup this element belongs to")
 
     def __init__(self, name, **kwargs):
         for key, value in kwargs.items():
@@ -1667,6 +1740,17 @@ a custom response, CVSS score or override other attributes.""",
         if self.severity < sevs[sev.lower()]:
             self.severity = sevs[sev.lower()]
         return
+
+    @property
+    def inLayoutGroup(self):
+        return self._inLayoutGroup
+
+    @inLayoutGroup.setter
+    def inLayoutGroup(self, lg):
+        self._inLayoutGroup = lg
+        un = self._uniq_name()
+        if un not in lg.nodes:
+            lg.nodes.append(un + ";")
 
 
 class Data:
@@ -1954,6 +2038,7 @@ class Dataflow(Element):
     usesVPN = varBool(False)
     usesSessionTokens = varBool(False)
     severity = 0
+    constraint = varBool(True, doc="data flow constrains graphviz ranking")
 
     def __init__(self, source, sink, name, **kwargs):
         self.source = source
@@ -1972,6 +2057,7 @@ class Dataflow(Element):
     fontcolor = {color};
     dir = {direction};
     label = "{label}";
+    constraint = {constraint};
 ]
 """
 
@@ -2003,6 +2089,7 @@ class Dataflow(Element):
             direction=direction,
             label=label,
             color=color,
+            constraint=str(self.constraint).lower()
         )
 
     def hasDataLeaks(self):
@@ -2013,6 +2100,11 @@ class Dataflow(Element):
             for d in self.data
         )
 
+    # Dataflows cannot be in layout groups, could add a warning here
+    @Element.inLayoutGroup.setter
+    def inLayoutGroup(self, lg):
+        pass
+        
 
 class Boundary(Element):
     """Trust boundary groups elements and data with the same trust level."""
